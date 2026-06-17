@@ -1,0 +1,969 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>액체의 부피 변화 관찰 실험</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+  background: linear-gradient(160deg, #0d47a1, #1976d2, #283593);
+  min-height: 100vh;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 16px;
+}
+.app {
+  background: white;
+  border-radius: 24px;
+  max-width: 720px;
+  width: 100%;
+  overflow: hidden;
+  box-shadow: 0 25px 80px rgba(0,0,0,0.4);
+  margin: auto;
+}
+.header {
+  background: linear-gradient(135deg, #0288d1, #01579b);
+  padding: 18px 24px 14px;
+  color: white;
+}
+.header h1 { font-size: 1.1em; font-weight: 700; margin-bottom: 12px; }
+.progress-bar { display: flex; gap: 5px; }
+.prog-seg { height: 6px; border-radius: 3px; background: rgba(255,255,255,0.3); flex: 1; transition: background 0.4s; }
+.prog-seg.done { background: rgba(255,255,255,0.65); }
+.prog-seg.active { background: white; }
+.content { padding: 18px 22px; }
+.step-tag {
+  display: inline-block;
+  background: #e3f2fd; color: #0288d1;
+  font-size: 0.76em; font-weight: 700;
+  padding: 3px 10px; border-radius: 20px; margin-bottom: 7px;
+}
+.step-title { font-size: 1.25em; color: #0d1e35; font-weight: 700; margin-bottom: 14px; line-height: 1.3; }
+
+/* Lab area */
+.lab-wrap {
+  position: relative;
+  margin-bottom: 14px;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #f7fafc;
+  border: 1.5px solid #e2eaf2;
+}
+.lab-wrap svg { display: block; width: 100%; }
+
+.drop-zone {
+  position: absolute;
+  border: 2.5px dashed #b0c8e8;
+  border-radius: 12px;
+  transition: all 0.2s;
+  cursor: default;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.drop-zone.ready { border-color: #0288d1; background: rgba(2,136,209,0.05); }
+.drop-zone.drag-over { border-color: #ff9800; background: rgba(255,152,0,0.12); transform: scale(1.04); }
+.drop-zone.done { border-color: #43a047; background: rgba(67,160,71,0.07); }
+.drop-zone-hint { font-size: 0.7em; color: #90a8c0; text-align: center; line-height: 1.3; pointer-events: none; }
+.drop-check { font-size: 1.6em; }
+
+/* Supplies */
+.supplies {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+  padding: 12px 14px 14px;
+  background: #f0f7ff;
+  border-radius: 12px;
+  border: 1.5px dashed #b3d4f5;
+  min-height: 80px;
+}
+.sup-hint {
+  width: 100%;
+  text-align: center;
+  font-size: 0.78em;
+  color: #7090b0;
+  margin-bottom: 2px;
+}
+.item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 9px 14px 8px;
+  background: white;
+  border-radius: 12px;
+  border: 2px solid #dde8f5;
+  cursor: grab;
+  transition: all 0.2s;
+  user-select: none;
+  touch-action: none;
+}
+.item:hover { border-color: #0288d1; box-shadow: 0 4px 12px rgba(2,136,209,0.2); transform: translateY(-2px); }
+.item.dragging { opacity: 0.5; transform: scale(0.95); }
+.item.used { opacity: 0.25; pointer-events: none; }
+.item-icon { font-size: 1.9em; }
+.item-label { font-size: 0.75em; font-weight: 600; color: #445; }
+
+/* Floating drag ghost */
+#ghost {
+  position: fixed;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.85;
+  transform: translate(-50%, -50%) scale(1.1);
+  background: white;
+  border: 2px solid #0288d1;
+  border-radius: 12px;
+  padding: 9px 14px 8px;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  box-shadow: 0 8px 24px rgba(2,136,209,0.35);
+}
+#ghost .item-icon { font-size: 1.9em; }
+#ghost .item-label { font-size: 0.75em; font-weight: 600; color: #445; }
+
+/* Desc */
+.desc {
+  background: linear-gradient(135deg, #e8f4fd, #f0f7ff);
+  border-left: 4px solid #0288d1;
+  border-radius: 0 12px 12px 0;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  color: #1a3a5c;
+  font-size: 0.91em;
+  line-height: 1.75;
+}
+
+/* Nav */
+.nav { display: flex; gap: 10px; }
+.btn { border: none; border-radius: 50px; padding: 12px 20px; font-size: 0.92em; font-weight: 600; cursor: pointer; transition: all 0.2s; font-family: inherit; }
+.btn-prev { background: #f0f4f8; color: #556; min-width: 80px; }
+.btn-prev:hover:not(:disabled) { background: #e2e8f0; }
+.btn-prev:disabled { opacity: 0.3; cursor: default; }
+.btn-next { background: linear-gradient(135deg, #0288d1, #01579b); color: white; flex: 1; box-shadow: 0 4px 14px rgba(2,136,209,0.35); }
+.btn-next:disabled { background: #c5d5e8; box-shadow: none; cursor: default; }
+.btn-next:not(:disabled):hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(2,136,209,0.45); }
+
+/* Conclusion */
+.conc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+.conc-card { border-radius: 12px; padding: 14px; text-align: center; }
+.conc-card.water { background: #e3f2fd; }
+.conc-card.eth { background: #ffebee; }
+.conc-icon { font-size: 1.6em; margin-bottom: 5px; }
+.conc-name { font-weight: 700; font-size: 0.93em; margin-bottom: 4px; }
+.water .conc-name { color: #1565c0; }
+.eth .conc-name { color: #c62828; }
+.conc-text { font-size: 0.82em; color: #555; margin-bottom: 7px; }
+.bar-bg { background: rgba(0,0,0,0.1); border-radius: 4px; height: 7px; }
+.bar-fill { height: 7px; border-radius: 4px; }
+.water .bar-fill { background: #1565c0; }
+.eth .bar-fill { background: #c62828; }
+.key-point {
+  background: linear-gradient(135deg, #ede7f6, #f3e5f5);
+  border-left: 4px solid #7b1fa2;
+  border-radius: 0 12px 12px 0;
+  padding: 13px 16px; color: #4a148c;
+  line-height: 1.75; font-size: 0.91em; margin-bottom: 16px;
+}
+.quiz-block { margin-bottom: 18px; }
+.quiz-q { font-weight: 700; color: #0d1e35; margin-bottom: 9px; font-size: 0.95em; line-height: 1.5; }
+.quiz-opts { display: flex; flex-direction: column; gap: 7px; }
+.opt-btn {
+  border: 2px solid #e0e8f0; border-radius: 10px; padding: 10px 14px;
+  cursor: pointer; transition: all 0.2s; font-size: 0.9em; color: #334;
+  background: white; text-align: left; font-family: inherit; font-weight: 500;
+}
+.opt-btn:hover:not(:disabled) { border-color: #0288d1; background: #f0f8ff; color: #0288d1; }
+.opt-btn.correct { border-color: #2e7d32; background: #e8f5e9; color: #1b5e20; }
+.opt-btn.wrong { border-color: #c62828; background: #ffebee; color: #b71c1c; }
+.quiz-fb { margin-top: 8px; padding: 9px 13px; border-radius: 9px; font-size: 0.87em; line-height: 1.6; display: none; }
+.quiz-fb.show { display: block; }
+.quiz-fb.good { background: #e8f5e9; color: #1b5e20; border-left: 3px solid #2e7d32; }
+.quiz-fb.bad { background: #ffebee; color: #b71c1c; border-left: 3px solid #c62828; }
+
+@keyframes fadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+.content { animation: fadeUp 0.28s ease; }
+
+@keyframes popIn { 0%{transform:scale(0.7);opacity:0} 70%{transform:scale(1.1)} 100%{transform:scale(1);opacity:1} }
+.pop { animation: popIn 0.4s ease; }
+</style>
+</head>
+<body>
+
+<div id="ghost">
+  <div class="item-icon" id="ghostIcon"></div>
+  <div class="item-label" id="ghostLabel"></div>
+</div>
+
+<div class="app">
+  <div class="header">
+    <h1>🔬 액체의 부피 변화 관찰 실험</h1>
+    <div class="progress-bar" id="pgBar"></div>
+  </div>
+  <div class="content" id="content"></div>
+</div>
+
+<script>
+// ── State ─────────────────────────────────────────────────────────────────
+let step = 0;
+const TOTAL = 8;
+
+// What's been done per step
+const done = {
+  1: { flask1: false, flask2: false },
+  2: { flask1: false, flask2: false },
+  3: { flask1: false, flask2: false },
+  4: { tank: false }
+};
+
+let _uid = 0;
+const uid = () => 'u' + (++_uid);
+
+// ── Drag state ─────────────────────────────────────────────────────────────
+let dragging = null; // { itemKey, icon, label, el }
+
+// ── Quizzes ────────────────────────────────────────────────────────────────
+const quizzes = [
+  { q: "가열했을 때 어느 액체가 유리관에서 더 높이 올라왔나요?",
+    opts: ["물 (파란색)", "에탄올 (붉은색)", "두 액체가 같았다", "아무것도 올라오지 않았다"],
+    ans: 1, fb: "정답! 에탄올(붉은색)이 물보다 훨씬 높이 올라왔어요. 에탄올의 열팽창이 물보다 훨씬 크기 때문이에요." },
+  { q: "이 실험에서 색소를 넣는 이유로 가장 알맞은 것은?",
+    opts: ["향기를 좋게 하기 위해", "액체를 가열하기 위해", "두 액체를 구별하고 변화를 관찰하기 위해", "부피를 크게 만들기 위해"],
+    ans: 2, fb: "정답! 색소를 넣으면 물(파란색)과 에탄올(붉은색)을 쉽게 구별하고 유리관의 높이 변화를 잘 관찰할 수 있어요." },
+  { q: "이 실험에서 알 수 있는 사실은 무엇인가요?",
+    opts: ["액체는 가열해도 부피가 변하지 않는다", "모든 액체는 가열하면 같은 양만큼 팽창한다", "액체는 가열하면 부피가 늘어나며 종류에 따라 팽창량이 다르다", "에탄올은 가열하면 부피가 줄어든다"],
+    ans: 2, fb: "정답! 액체는 가열되면 부피가 늘어나고(열팽창), 종류에 따라 팽창 정도가 달라요." }
+];
+let qState = quizzes.map(() => ({ done: false, sel: -1, ok: false }));
+
+// ── Navigation ─────────────────────────────────────────────────────────────
+function go(n) {
+  step = n;
+  render();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function stepComplete() {
+  if (!done[step]) return true;
+  return Object.values(done[step]).every(Boolean);
+}
+
+// ── Render ─────────────────────────────────────────────────────────────────
+function render() {
+  updateProg();
+  const c = document.getElementById('content');
+  c.style.animation = 'none'; c.offsetHeight; c.style.animation = '';
+  const pages = [pgIntro, pgStep1, pgStep2, pgStep3, pgStep4, pgStep5, pgObserve, pgConclusion];
+  c.innerHTML = pages[step]();
+  bindDrag();
+}
+
+function updateProg() {
+  document.getElementById('pgBar').innerHTML =
+    Array.from({length: TOTAL}, (_, i) =>
+      `<div class="prog-seg ${i===step?'active':i<step?'done':''}"></div>`).join('');
+}
+
+function navHTML(prev, nextLbl, next, needDone) {
+  const dis = needDone && !stepComplete() ? 'disabled' : '';
+  return `<div class="nav">
+    <button class="btn btn-prev" onclick="go(${prev})" ${prev<0?'disabled':''}>← 이전</button>
+    <button class="btn btn-next" id="btnNext" onclick="go(${next})" ${dis}>${nextLbl} →</button>
+  </div>`;
+}
+
+// ── SVG helpers ────────────────────────────────────────────────────────────
+// Erlenmeyer flask path: cx=neck-center, nt=neck-top, nb=neck-bottom, bb=body-bottom
+function fp(cx, nt, nb, bb) {
+  return `M${cx-14},${nt} L${cx+14},${nt} L${cx+14},${nb} L${cx+55},${bb} L${cx-55},${bb} L${cx-14},${nb} Z`;
+}
+
+// Draw a complete flask SVG group
+function drawFlask(opts) {
+  const {
+    cx, nt=70, nb=110, bb=240,
+    fill='none', fillAlpha=0.5,
+    fillRatio=0.45,   // 0.0~1.0, fraction of body height to fill
+    fillFull=false,   // true → fill all the way to neck top
+    stroke='#90caf9',
+    stopper=false,   // show stopper
+    tube=false,      // show glass tube
+    tubeDown=false,  // tube goes to bottom of flask too
+    tubeFill=null,   // color of liquid in upper tube
+    riseH=0,         // px of liquid rising in tube
+    tubeLen=90       // length of upper glass tube
+  } = opts;
+
+  const id = uid();
+  const bodyH = bb - nb;
+  // fillFull: fill from neck-top all the way to body-bottom
+  const fillY = fill !== 'none' ? (fillFull ? nt : bb - bodyH * fillRatio) : bb;
+  const fillH = fill !== 'none' ? (fillFull ? bb - nt : bodyH * fillRatio) : 0;
+  const stopperY = nt - 20;
+  const tubeTop = stopperY - tubeLen;
+
+  let out = `<defs><clipPath id="${id}"><path d="${fp(cx,nt,nb,bb)}"/></clipPath></defs>`;
+
+  // Liquid in flask body
+  if (fill !== 'none') {
+    out += `<rect x="${cx-58}" y="${fillY}" width="116" height="${fillH}" fill="${fill}" opacity="${fillAlpha}" clip-path="url(#${id})"/>`;
+  }
+
+  // Flask outline
+  out += `<path d="${fp(cx,nt,nb,bb)}" fill="rgba(220,240,255,0.06)" stroke="${stroke}" stroke-width="2.5" stroke-linejoin="round"/>`;
+
+  // Neck opening rectangle — show liquid color if full, else white
+  const neckFill = fillFull && fill !== 'none' ? fill : 'white';
+  const neckOpacity = fillFull && fill !== 'none' ? fillAlpha : 1;
+  out += `<rect x="${cx-14}" y="${nt-11}" width="28" height="14" rx="3" fill="${neckFill}" opacity="${neckOpacity}" stroke="${stroke}" stroke-width="2"/>`;
+
+  if (stopper || tube) {
+    // Stopper
+    out += `<rect x="${cx-19}" y="${stopperY}" width="38" height="16" rx="7" fill="#ffcc80" stroke="#f57c00" stroke-width="1.5"/>`;
+  }
+
+  if (tube) {
+    // Upper glass tube (above stopper)
+    out += `<rect x="${cx-4}" y="${tubeTop}" width="8" height="${tubeLen}" rx="3" fill="#e0e8ee" stroke="#b0bec5" stroke-width="1.2"/>`;
+
+    if (tubeDown) {
+      // Tube going DOWN through stopper into flask, reaches near bottom
+      const tubeInsideId = uid();
+      const tubeDownLen = (bb - nt) + 4;
+      out += `<defs><clipPath id="${tubeInsideId}"><path d="${fp(cx,nt,nb,bb)}"/></clipPath></defs>`;
+      out += `<rect x="${cx-3}" y="${nt-4}" width="6" height="${tubeDownLen}" rx="2" fill="#cfd8dc" opacity="0.7" clip-path="url(#${tubeInsideId})"/>`;
+      // Liquid rises slightly into the upper tube (just above stopper)
+      if (fill !== 'none') {
+        const smallRise = 13;
+        out += `<rect x="${cx-3}" y="${stopperY - smallRise}" width="6" height="${smallRise}" rx="2" fill="${fill}" opacity="0.88"/>`;
+      }
+    }
+
+    // Liquid rising in upper tube
+    if (tubeFill && riseH > 0) {
+      out += `<rect x="${cx-3}" y="${stopperY - riseH}" width="6" height="${riseH}" rx="2" fill="${tubeFill}" opacity="0.9">`;
+      out += `<animate attributeName="height" from="0" to="${riseH}" dur="2.5s" fill="freeze" begin="0.4s"/>`;
+      out += `<animate attributeName="y" from="${stopperY}" to="${stopperY - riseH}" dur="2.5s" fill="freeze" begin="0.4s"/>`;
+      out += `</rect>`;
+    }
+  }
+
+  return out;
+}
+
+// ── Drop zone helpers ──────────────────────────────────────────────────────
+// Percentage positions based on viewBox 520×300 (default) or 520×310
+function dzStyle(x, y, w, h, vbW=520, vbH=300) {
+  return `left:${(x/vbW*100).toFixed(1)}%;top:${(y/vbH*100).toFixed(1)}%;width:${(w/vbW*100).toFixed(1)}%;height:${(h/vbH*100).toFixed(1)}%;`;
+}
+
+function dropZone(target, x, y, w, h, hint='', vbW=520, vbH=300) {
+  const isDone = isDoneTarget(target);
+  const cls = isDone ? 'done' : 'ready';
+  const inner = isDone
+    ? `<span class="drop-check pop">✅</span>`
+    : `<span class="drop-zone-hint">${hint}</span>`;
+  return `<div class="drop-zone ${cls}" data-target="${target}"
+    style="${dzStyle(x,y,w,h,vbW,vbH)}">${inner}</div>`;
+}
+
+function isDoneTarget(target) {
+  const s = done[step];
+  if (!s) return false;
+  return s[target] === true;
+}
+
+// ── Drag & Drop binding ────────────────────────────────────────────────────
+function bindDrag() {
+  const ghost = document.getElementById('ghost');
+
+  document.querySelectorAll('.item[data-item]').forEach(el => {
+    // Mouse
+    el.addEventListener('mousedown', e => startDrag(e.currentTarget, e.clientX, e.clientY));
+    // Touch
+    el.addEventListener('touchstart', e => {
+      const t = e.touches[0];
+      startDrag(e.currentTarget, t.clientX, t.clientY);
+      e.preventDefault();
+    }, { passive: false });
+  });
+
+  document.addEventListener('mousemove', e => moveDrag(e.clientX, e.clientY));
+  document.addEventListener('touchmove', e => {
+    if (!dragging) return;
+    const t = e.touches[0];
+    moveDrag(t.clientX, t.clientY);
+    e.preventDefault();
+  }, { passive: false });
+
+  document.addEventListener('mouseup', e => endDrag(e.clientX, e.clientY));
+  document.addEventListener('touchend', e => {
+    if (!dragging) return;
+    const t = e.changedTouches[0];
+    endDrag(t.clientX, t.clientY);
+  });
+}
+
+function startDrag(el, x, y) {
+  if (el.classList.contains('used')) return;
+  dragging = { itemKey: el.dataset.item, icon: el.querySelector('.item-icon').textContent, label: el.querySelector('.item-label').textContent, el };
+  el.classList.add('dragging');
+
+  const ghost = document.getElementById('ghost');
+  document.getElementById('ghostIcon').textContent = dragging.icon;
+  document.getElementById('ghostLabel').textContent = dragging.label;
+  ghost.style.display = 'flex';
+  ghost.style.left = x + 'px';
+  ghost.style.top = y + 'px';
+}
+
+function moveDrag(x, y) {
+  if (!dragging) return;
+  const ghost = document.getElementById('ghost');
+  ghost.style.left = x + 'px';
+  ghost.style.top = y + 'px';
+
+  // Highlight drop zones
+  document.querySelectorAll('.drop-zone.ready').forEach(dz => {
+    const r = dz.getBoundingClientRect();
+    const over = x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+    dz.classList.toggle('drag-over', over);
+  });
+}
+
+function endDrag(x, y) {
+  if (!dragging) return;
+  const ghost = document.getElementById('ghost');
+  ghost.style.display = 'none';
+  dragging.el.classList.remove('dragging');
+
+  // Find drop zone under cursor
+  let dropped = false;
+  document.querySelectorAll('.drop-zone.ready').forEach(dz => {
+    const r = dz.getBoundingClientRect();
+    if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) {
+      dz.classList.remove('drag-over');
+      handleDrop(dz.dataset.target, dragging.itemKey);
+      dropped = true;
+    }
+  });
+
+  if (!dropped) {
+    dragging.el.classList.remove('dragging');
+  }
+  dragging = null;
+}
+
+// ── Drop logic ─────────────────────────────────────────────────────────────
+const validDrops = {
+  1: { flask1: 'water', flask2: 'ethanol' },
+  2: { flask1: 'blue-dye', flask2: 'red-dye' },
+  3: { flask1: 'tube1', flask2: 'tube2' },
+  4: { tank: 'kettle' }
+};
+
+function handleDrop(target, itemKey) {
+  const expected = validDrops[step] && validDrops[step][target];
+  if (!expected || expected !== itemKey) {
+    // Wrong item - shake
+    const dz = document.querySelector(`.drop-zone[data-target="${target}"]`);
+    if (dz) {
+      dz.style.borderColor = '#ef5350';
+      dz.style.background = 'rgba(239,83,80,0.1)';
+      setTimeout(() => { dz.style.borderColor = ''; dz.style.background = ''; }, 700);
+    }
+    return;
+  }
+
+  // Mark done
+  done[step][target] = true;
+
+  // Mark item used
+  const el = document.querySelector(`.item[data-item="${itemKey}"]`);
+  if (el) el.classList.add('used');
+
+  // Re-render lab SVG + drop zones
+  reRenderLab();
+
+  // Enable next if complete
+  if (stepComplete()) {
+    const btn = document.getElementById('btnNext');
+    if (btn) btn.removeAttribute('disabled');
+  }
+}
+
+function reRenderLab() {
+  // Replace lab content without full re-render (preserves supplies state)
+  const labWrap = document.getElementById('labWrap');
+  if (!labWrap) return;
+  const newHtml = currentLabHTML();
+  labWrap.innerHTML = newHtml;
+  bindDrag();
+}
+
+function currentLabHTML() {
+  if (step === 1) return labStep1();
+  if (step === 2) return labStep2();
+  if (step === 3) return labStep3();
+  if (step === 4) return labStep4();
+  return '';
+}
+
+// ── Page: Intro ────────────────────────────────────────────────────────────
+function pgIntro() {
+  const cx1=155, cx2=365, nt=60, nb=100, bb=195;
+  const id1=uid(), id2=uid();
+  return `
+    <div class="step-tag">실험 소개</div>
+    <div class="step-title">액체의 부피 변화 관찰</div>
+    <div class="lab-wrap">
+      <svg viewBox="0 0 520 240" xmlns="http://www.w3.org/2000/svg">
+        <rect width="520" height="240" fill="#f7fafc"/>
+        ${drawFlask({cx:cx1,nt,nb,bb,stroke:'#90caf9'})}
+        <text x="${cx1}" y="225" text-anchor="middle" font-size="12" fill="#1565c0" font-weight="bold">물</text>
+        ${drawFlask({cx:cx2,nt,nb,bb,stroke:'#ef9a9a'})}
+        <text x="${cx2}" y="225" text-anchor="middle" font-size="12" fill="#c62828" font-weight="bold">에탄올</text>
+        <rect x="20" y="145" width="90" height="68" rx="6" fill="#ddeeff" stroke="#90caf9" stroke-width="1.8"/>
+        <text x="65" y="228" text-anchor="middle" font-size="11" fill="#1565c0">수조</text>
+        <circle cx="440" cy="80" r="19" fill="#1565c0" opacity="0.8"/>
+        <text x="440" y="115" text-anchor="middle" font-size="10" fill="#1565c0">파란색소</text>
+        <circle cx="495" cy="80" r="19" fill="#c62828" opacity="0.8"/>
+        <text x="495" y="115" text-anchor="middle" font-size="10" fill="#c62828">붉은색소</text>
+        <rect x="438" y="135" width="8" height="60" rx="3" fill="#ddd" stroke="#aaa" stroke-width="1"/>
+        <rect x="460" y="135" width="8" height="60" rx="3" fill="#ddd" stroke="#aaa" stroke-width="1"/>
+        <text x="453" y="212" text-anchor="middle" font-size="10" fill="#666">유리관</text>
+        <rect x="478" y="147" width="32" height="12" rx="5" fill="#ffcc80" stroke="#f57c00" stroke-width="1.3"/>
+        <text x="494" y="175" text-anchor="middle" font-size="10" fill="#e65100">마개</text>
+      </svg>
+    </div>
+    <div class="desc">
+      이 실험에서는 <strong>물</strong>과 <strong>에탄올</strong>을 가열할 때 부피가 어떻게 변하는지 관찰해요.<br><br>
+      <strong>📦 준비물:</strong> 수조 · 물 · 에탄올 · 유리삼각플라스크 2개 · 가는 유리관 2개 · 실리콘 마개 2개 · 파란 색소 · 붉은 색소
+    </div>
+    ${navHTML(-1, '실험 시작', 1, false)}
+  `;
+}
+
+// ── Lab SVG: Step 1 (fill flasks) ─────────────────────────────────────────
+function labStep1() {
+  const f1 = done[1].flask1, f2 = done[1].flask2;
+  const cx1=140, cx2=380, nt=70, nb=110, bb=250;
+  return `
+    <svg viewBox="0 0 520 290" xmlns="http://www.w3.org/2000/svg">
+      <rect width="520" height="290" fill="#f7fafc"/>
+      ${drawFlask({cx:cx1, nt, nb, bb, fill: f1?'rgba(210,235,255,0.9)':'none', fillAlpha:0.75, fillFull:!!f1, stroke:'#90caf9'})}
+      <text x="${cx1}" y="278" text-anchor="middle" font-size="12" fill="#1565c0" font-weight="bold">물 플라스크</text>
+      ${!f1 ? `<text x="${cx1}" y="175" text-anchor="middle" font-size="11" fill="#bcd">물을 넣어요</text>` : ''}
+
+      ${drawFlask({cx:cx2, nt, nb, bb, fill: f2?'rgba(220,240,255,0.85)':'none', fillAlpha:0.75, fillFull:!!f2, stroke:'#ef9a9a'})}
+      <text x="${cx2}" y="278" text-anchor="middle" font-size="12" fill="#c62828" font-weight="bold">에탄올 플라스크</text>
+      ${!f2 ? `<text x="${cx2}" y="175" text-anchor="middle" font-size="11" fill="#dbb">에탄올을 넣어요</text>` : ''}
+    </svg>
+    ${dropZone('flask1', cx1-58, nt, 116, bb-nt+10, '물을\n넣는 곳', 520, 300)}
+    ${dropZone('flask2', cx2-58, nt, 116, bb-nt+10, '에탄올을\n넣는 곳', 520, 300)}
+  `;
+}
+
+// ── Lab SVG: Step 2 (add dye) ─────────────────────────────────────────────
+function labStep2() {
+  const f1 = done[2].flask1, f2 = done[2].flask2;
+  const cx1=140, cx2=380, nt=70, nb=110, bb=250;
+  const c1 = f1 ? '#1565c0' : 'rgba(210,235,255,0.9)';
+  const c2 = f2 ? '#c62828' : 'rgba(220,240,255,0.85)';
+  const s1 = f1 ? '#1565c0' : '#90caf9';
+  const s2 = f2 ? '#c62828' : '#ef9a9a';
+  return `
+    <svg viewBox="0 0 520 290" xmlns="http://www.w3.org/2000/svg">
+      <rect width="520" height="290" fill="#f7fafc"/>
+      ${drawFlask({cx:cx1, nt, nb, bb, fill:c1, fillAlpha:f1?0.72:0.75, fillFull:true, stroke:s1})}
+      <text x="${cx1}" y="278" text-anchor="middle" font-size="12" fill="${s1}" font-weight="bold">${f1?'물 (파란색)':'물'}</text>
+      ${!f1 ? `<text x="${cx1}" y="150" text-anchor="middle" font-size="10" fill="#aaa">파란 색소를 넣으세요</text>` : ''}
+
+      ${drawFlask({cx:cx2, nt, nb, bb, fill:c2, fillAlpha:f2?0.68:0.75, fillFull:true, stroke:s2})}
+      <text x="${cx2}" y="278" text-anchor="middle" font-size="12" fill="${s2}" font-weight="bold">${f2?'에탄올 (붉은색)':'에탄올'}</text>
+      ${!f2 ? `<text x="${cx2}" y="150" text-anchor="middle" font-size="10" fill="#aaa">붉은 색소를 넣으세요</text>` : ''}
+    </svg>
+    ${dropZone('flask1', cx1-58, nt, 116, bb-nt+10, '파란 색소\n넣는 곳', 520, 300)}
+    ${dropZone('flask2', cx2-58, nt, 116, bb-nt+10, '붉은 색소\n넣는 곳', 520, 300)}
+  `;
+}
+
+// ── Lab SVG: Step 3 (insert tube) ─────────────────────────────────────────
+function labStep3() {
+  const f1 = done[3].flask1, f2 = done[3].flask2;
+  const cx1=140, cx2=380, nt=95, nb=135, bb=265;
+  return `
+    <svg viewBox="0 0 520 300" xmlns="http://www.w3.org/2000/svg">
+      <rect width="520" height="300" fill="#f7fafc"/>
+      ${drawFlask({cx:cx1, nt, nb, bb, fill:'#1565c0', fillAlpha:0.72, fillFull:true, stroke:'#1565c0',
+                   stopper:f1, tube:f1, tubeDown:f1})}
+      <text x="${cx1}" y="292" text-anchor="middle" font-size="11" fill="#1565c0">물 (파란색)</text>
+
+      ${drawFlask({cx:cx2, nt, nb, bb, fill:'#c62828', fillAlpha:0.68, fillFull:true, stroke:'#c62828',
+                   stopper:f2, tube:f2, tubeDown:f2})}
+      <text x="${cx2}" y="292" text-anchor="middle" font-size="11" fill="#c62828">에탄올 (붉은색)</text>
+
+      ${!f1 ? `<text x="${cx1}" y="50" text-anchor="middle" font-size="10" fill="#aaa">↓ 유리관 꽂기</text>` : ''}
+      ${!f2 ? `<text x="${cx2}" y="50" text-anchor="middle" font-size="10" fill="#aaa">↓ 유리관 꽂기</text>` : ''}
+    </svg>
+    ${dropZone('flask1', cx1-25, 5, 50, nt-5, '유리관\n꽂는 곳', 520, 300)}
+    ${dropZone('flask2', cx2-25, 5, 50, nt-5, '유리관\n꽂는 곳', 520, 300)}
+  `;
+}
+
+// ── Lab SVG helper: draw tank scene (shared by step 4 & 5) ───────────────
+function tankScene(cx1, cx2, nt, nb, bb, tankY, tankH, vbH, td, riseH1, riseH2) {
+  const tcid = uid();
+  const stopY = nt - 20;
+
+  const steam = td ? `
+    <path d="M${cx1},${tankY-4} Q${cx1+12},${tankY-24} ${cx1},${tankY-44}" stroke="#ff7043" stroke-width="2" fill="none">
+      <animate attributeName="opacity" values="0.6;0;0.6" dur="2s" repeatCount="indefinite"/>
+    </path>
+    <path d="M260,${tankY-4} Q275,${tankY-29} 260,${tankY-49}" stroke="#ff7043" stroke-width="2" fill="none">
+      <animate attributeName="opacity" values="0;0.7;0" dur="2s" repeatCount="indefinite" begin="0.6s"/>
+    </path>
+    <path d="M${cx2},${tankY-4} Q${cx2+12},${tankY-24} ${cx2},${tankY-44}" stroke="#ff7043" stroke-width="2" fill="none">
+      <animate attributeName="opacity" values="0.6;0;0.6" dur="2s" repeatCount="indefinite" begin="1.1s"/>
+    </path>` : '';
+
+  const rising = (td && riseH1 > 0) ? `
+    <rect x="${cx1-3}" y="${stopY}" width="6" height="0" rx="2" fill="#1565c0" opacity="0.9">
+      <animate attributeName="height" from="0" to="${riseH1}" dur="2.5s" fill="freeze" begin="0.3s"/>
+      <animate attributeName="y" from="${stopY}" to="${stopY-riseH1}" dur="2.5s" fill="freeze" begin="0.3s"/>
+    </rect>
+    <rect x="${cx2-3}" y="${stopY}" width="6" height="0" rx="2" fill="#c62828" opacity="0.9">
+      <animate attributeName="height" from="0" to="${riseH2}" dur="2.5s" fill="freeze" begin="0.3s"/>
+      <animate attributeName="y" from="${stopY}" to="${stopY-riseH2}" dur="2.5s" fill="freeze" begin="0.3s"/>
+    </rect>
+    <text x="${cx1+24}" y="${stopY-riseH1-2}" font-size="10" fill="#1565c0" font-weight="bold">↑ 조금</text>
+    <text x="${cx2+24}" y="${stopY-riseH2-2}" font-size="10" fill="#c62828" font-weight="bold">↑↑ 많이!</text>
+    <rect x="148" y="${vbH-14}" width="224" height="16" rx="8" fill="#fce4ec" stroke="#e91e63" stroke-width="1.2"/>
+    <text x="260" y="${vbH-3}" text-anchor="middle" font-size="9.5" fill="#880e4f" font-weight="bold">에탄올이 물보다 훨씬 높이 올라와요!</text>
+  ` : '';
+
+  return `
+    <defs><clipPath id="${tcid}"><rect x="28" y="${tankY}" width="464" height="${tankH}" rx="8"/></clipPath></defs>
+
+    <!-- Tank background -->
+    <rect x="28" y="${tankY}" width="464" height="${tankH}" rx="8"
+          fill="${td?'#fff8ee':'#f2f6fa'}" stroke="none"/>
+
+    <!-- Flasks sitting at bottom of tank -->
+    ${drawFlask({cx:cx1, nt, nb, bb, fill:'#1565c0', fillAlpha:0.72, fillFull:true, stroke:'#1565c0', stopper:true, tube:true, tubeDown:true, tubeLen:135})}
+    ${drawFlask({cx:cx2, nt, nb, bb, fill:'#c62828', fillAlpha:0.68, fillFull:true, stroke:'#c62828', stopper:true, tube:true, tubeDown:true, tubeLen:135})}
+
+    <!-- Hot water fill (semi-transparent, clipped to tank) -->
+    ${td ? `<rect x="28" y="${tankY+12}" width="464" height="${tankH-12}" fill="#ffcc80" opacity="0.48" clip-path="url(#${tcid})"/>` : ''}
+
+    <!-- Tank border drawn on top -->
+    <rect x="28" y="${tankY}" width="464" height="${tankH}" rx="8" fill="none"
+          stroke="${td?'#ff9800':'#b0c8e4'}" stroke-width="2.2"/>
+
+    ${!td ? `<text x="260" y="${tankY+tankH/2+5}" text-anchor="middle" font-size="12" fill="#b8cad8">뜨거운 물을 여기에 붓기</text>` : ''}
+    ${steam}
+    ${rising}
+
+    <text x="${cx1}" y="${vbH-3}" text-anchor="middle" font-size="10" fill="#1565c0" font-weight="bold">물</text>
+    <text x="${cx2}" y="${vbH-3}" text-anchor="middle" font-size="10" fill="#c62828" font-weight="bold">에탄올</text>
+    <text x="500" y="${tankY+tankH/2+4}" text-anchor="middle" font-size="10" fill="${td?'#e65100':'#aaa'}">수조</text>
+  `;
+}
+
+// ── Lab SVG: Step 4 (place flasks in tank + pour hot water) ──────────────
+function labStep4() {
+  const td = done[4].tank;
+  const cx1=155, cx2=365, nt=155, nb=195, bb=292;
+  const tankY=192, tankH=108, vbH=310;
+
+  // Arrow position: top of small rise in tube (stopperY - smallRise)
+  const stopperY = nt - 20;   // 135
+  const smallRise = 13;
+  const ay = stopperY - smallRise;  // 122
+
+  // Tube edges
+  const t1right = cx1 + 4;   // 159
+  const t2left  = cx2 - 4;   // 361
+
+  const arrows = td ? `
+    <!-- Water level: horizontal arrow from left pointing right to tube -->
+    <line x1="38" y1="${ay}" x2="${t1right - 10}" y2="${ay}"
+          stroke="#1565c0" stroke-width="1.8"/>
+    <polygon points="${t1right-10},${ay-4} ${t1right+1},${ay} ${t1right-10},${ay+4}"
+             fill="#1565c0"/>
+    <text x="34" y="${ay+4}" text-anchor="end" font-size="10.5"
+          fill="#1565c0" font-weight="bold">물</text>
+
+    <!-- Ethanol level: horizontal arrow from right pointing left to tube -->
+    <line x1="${t2left + 10}" y1="${ay}" x2="482" y2="${ay}"
+          stroke="#c62828" stroke-width="1.8"/>
+    <polygon points="${t2left+10},${ay-4} ${t2left-1},${ay} ${t2left+10},${ay+4}"
+             fill="#c62828"/>
+    <text x="486" y="${ay+4}" text-anchor="start" font-size="10.5"
+          fill="#c62828" font-weight="bold">에탄올</text>
+  ` : '';
+
+  return `
+    <svg viewBox="0 0 520 ${vbH}" xmlns="http://www.w3.org/2000/svg">
+      <rect width="520" height="${vbH}" fill="#f7fafc"/>
+      ${tankScene(cx1, cx2, nt, nb, bb, tankY, tankH, vbH, td, 0, 0)}
+      ${arrows}
+    </svg>
+    ${dropZone('tank', 28, tankY, 464, tankH, '뜨거운 물을\n붓는 곳', 520, vbH)}
+  `;
+}
+
+// ── Lab SVG: Step 5 (directly show rising animation) ─────────────────────
+function labStep5() {
+  const cx1=155, cx2=365, nt=155, nb=195, bb=292;
+  const tankY=192, tankH=108, vbH=315;
+
+  // Original liquid level arrows (same as step 4)
+  const stopperY = nt - 20;  // 135
+  const smallRise = 13;
+  const ay = stopperY - smallRise;  // 122
+  const t1right = cx1 + 4;   // 159
+  const t2left  = cx2 - 4;   // 361
+
+  const originArrows = `
+    <!-- Original level: water (left arrow pointing right) -->
+    <line x1="38" y1="${ay}" x2="${t1right-10}" y2="${ay}"
+          stroke="#1565c0" stroke-width="1.8"/>
+    <polygon points="${t1right-10},${ay-4} ${t1right+1},${ay} ${t1right-10},${ay+4}"
+             fill="#1565c0"/>
+    <text x="34" y="${ay+4}" text-anchor="end" font-size="10.5"
+          fill="#1565c0" font-weight="bold">물</text>
+
+    <!-- Original level: ethanol (right arrow pointing left) -->
+    <line x1="${t2left+10}" y1="${ay}" x2="482" y2="${ay}"
+          stroke="#c62828" stroke-width="1.8"/>
+    <polygon points="${t2left+10},${ay-4} ${t2left-1},${ay} ${t2left+10},${ay+4}"
+             fill="#c62828"/>
+    <text x="486" y="${ay+4}" text-anchor="start" font-size="10.5"
+          fill="#c62828" font-weight="bold">에탄올</text>
+  `;
+
+  return `
+    <svg viewBox="0 0 520 ${vbH}" xmlns="http://www.w3.org/2000/svg">
+      <rect width="520" height="${vbH}" fill="#f7fafc"/>
+      ${tankScene(cx1, cx2, nt, nb, bb, tankY, tankH, vbH, true, 22, 65)}
+      ${originArrows}
+    </svg>
+  `;
+}
+
+// ── Pages ──────────────────────────────────────────────────────────────────
+function pgStep1() {
+  return `
+    <div class="step-tag">과정 1</div>
+    <div class="step-title">플라스크에 액체 넣기</div>
+    <div class="lab-wrap" id="labWrap" style="position:relative;padding-bottom:55.8%">
+      <div style="position:absolute;inset:0">${labStep1()}</div>
+    </div>
+    <div class="supplies">
+      <div class="sup-hint">준비물을 플라스크 위로 드래그하세요 👆</div>
+      <div class="item ${done[1].flask1?'used':''}" data-item="water">
+        <div class="item-icon">🫙</div><div class="item-label">물</div>
+      </div>
+      <div class="item ${done[1].flask2?'used':''}" data-item="ethanol">
+        <div class="item-icon">⚗️</div><div class="item-label">에탄올</div>
+      </div>
+    </div>
+    <div class="desc">2개의 유리삼각플라스크에 <strong>물</strong>과 <strong>에탄올</strong>을 각각 넣습니다. 왼쪽에 물, 오른쪽에 에탄올을 드래그해 넣어 보세요!</div>
+    ${navHTML(0, '다음 단계', 2, true)}
+  `;
+}
+
+function pgStep2() {
+  return `
+    <div class="step-tag">과정 2</div>
+    <div class="step-title">색소 넣기</div>
+    <div class="lab-wrap" id="labWrap" style="position:relative;padding-bottom:55.8%">
+      <div style="position:absolute;inset:0">${labStep2()}</div>
+    </div>
+    <div class="supplies">
+      <div class="sup-hint">색소를 알맞은 플라스크로 드래그하세요 👆</div>
+      <div class="item ${done[2].flask1?'used':''}" data-item="blue-dye">
+        <div class="item-icon">🔵</div><div class="item-label">파란 색소</div>
+      </div>
+      <div class="item ${done[2].flask2?'used':''}" data-item="red-dye">
+        <div class="item-icon">🔴</div><div class="item-label">붉은 색소</div>
+      </div>
+    </div>
+    <div class="desc">물이 든 플라스크에는 <strong style="color:#1565C0">파란 색소</strong>를, 에탄올이 든 플라스크에는 <strong style="color:#C62828">붉은 색소</strong>를 넣어보세요!</div>
+    ${navHTML(1, '다음 단계', 3, true)}
+  `;
+}
+
+function pgStep3() {
+  return `
+    <div class="step-tag">과정 3</div>
+    <div class="step-title">유리관 꽂기</div>
+    <div class="lab-wrap" id="labWrap" style="position:relative;padding-bottom:57.7%">
+      <div style="position:absolute;inset:0">${labStep3()}</div>
+    </div>
+    <div class="supplies">
+      <div class="sup-hint">유리관(마개)을 플라스크 입구 위로 드래그하세요 👆</div>
+      <div class="item ${done[3].flask1?'used':''}" data-item="tube1">
+        <div class="item-icon">🧪</div><div class="item-label">유리관+마개 ①</div>
+      </div>
+      <div class="item ${done[3].flask2?'used':''}" data-item="tube2">
+        <div class="item-icon">🧪</div><div class="item-label">유리관+마개 ②</div>
+      </div>
+    </div>
+    <div class="desc">각 플라스크에 <strong>실리콘 마개</strong>를 꽂고 <strong>가는 유리관</strong>을 끼웁니다. 유리관은 플라스크 바닥까지 내려와요!</div>
+    ${navHTML(2, '다음 단계', 4, true)}
+  `;
+}
+
+function pgStep4() {
+  // vbH=310, vbW=520 → 310/520=59.6%
+  return `
+    <div class="step-tag">과정 4</div>
+    <div class="step-title">수조에 뜨거운 물 붓기</div>
+    <div class="lab-wrap" id="labWrap" style="position:relative;padding-bottom:59.6%">
+      <div style="position:absolute;inset:0">${labStep4()}</div>
+    </div>
+    <div class="supplies">
+      <div class="sup-hint">뜨거운 물을 수조로 드래그하세요 👆</div>
+      <div class="item ${done[4].tank?'used':''}" data-item="kettle">
+        <div class="item-icon">🫖</div><div class="item-label">뜨거운 물</div>
+      </div>
+    </div>
+    <div class="desc">두 플라스크를 수조에 넣고 <strong>뜨거운 물</strong>을 붓습니다. 플라스크가 수조 바닥에 놓이고 유리관 끝이 수조 위로 나와 있어야 해요!</div>
+    ${navHTML(3, '관찰하기', 5, true)}
+  `;
+}
+
+function pgStep5() {
+  // vbH=315, vbW=520 → 315/520=60.6%
+  return `
+    <div class="step-tag">과정 5</div>
+    <div class="step-title">부피 변화 관찰하기</div>
+    <div class="lab-wrap" style="position:relative;padding-bottom:60.6%">
+      <div style="position:absolute;inset:0">${labStep5()}</div>
+    </div>
+    <div class="desc">
+      뜨거운 물로 가열하니 두 액체가 유리관 위로 서서히 올라와요!<br>
+      <strong style="color:#C62828">에탄올(붉은색)</strong>이 <strong style="color:#1565C0">물(파란색)</strong>보다 훨씬 높이 올라오는 것을 관찰하세요!
+    </div>
+    ${navHTML(4, '관찰 결과', 6, false)}
+  `;
+}
+
+function pgObserve() {
+  return `
+    <div class="step-tag">관찰 결과</div>
+    <div class="step-title">어떻게 변했을까요?</div>
+    <div class="lab-wrap">
+      <svg viewBox="0 0 480 275" xmlns="http://www.w3.org/2000/svg">
+        <rect width="480" height="275" fill="#f7fafc"/>
+        <line x1="60" y1="195" x2="420" y2="195" stroke="#ccc" stroke-width="1.5" stroke-dasharray="6,4"/>
+        <text x="428" y="199" font-size="10" fill="#aaa">기준</text>
+        <text x="140" y="26" text-anchor="middle" font-size="13" fill="#1565c0" font-weight="bold">💧 물</text>
+        <rect x="90" y="195" width="100" height="52" rx="6" fill="#e3f2fd" stroke="#90caf9" stroke-width="1.5"/>
+        <rect x="90" y="195" width="100" height="0" rx="6" fill="#1e88e5" opacity="0.75">
+          <animate attributeName="height" from="0" to="35" dur="1.5s" fill="freeze"/>
+          <animate attributeName="y" from="195" to="160" dur="1.5s" fill="freeze"/>
+        </rect>
+        <text x="140" y="263" text-anchor="middle" font-size="11" fill="#1565c0">팽창 작음</text>
+        <text x="340" y="26" text-anchor="middle" font-size="13" fill="#c62828" font-weight="bold">🧪 에탄올</text>
+        <rect x="290" y="195" width="100" height="52" rx="6" fill="#ffebee" stroke="#ef9a9a" stroke-width="1.5"/>
+        <rect x="290" y="195" width="100" height="0" rx="6" fill="#e53935" opacity="0.7">
+          <animate attributeName="height" from="0" to="105" dur="1.5s" fill="freeze" begin="0.3s"/>
+          <animate attributeName="y" from="195" to="90" dur="1.5s" fill="freeze" begin="0.3s"/>
+        </rect>
+        <text x="340" y="263" text-anchor="middle" font-size="11" fill="#c62828">팽창 큼</text>
+        <rect x="90" y="261" width="300" height="18" rx="9" fill="#fce4ec" stroke="#e91e63" stroke-width="1.3"/>
+        <text x="240" y="274" text-anchor="middle" font-size="10" fill="#880e4f" font-weight="bold">에탄올의 열팽창이 물보다 약 3배 더 큼!</text>
+      </svg>
+    </div>
+    <div class="desc">
+      <strong style="color:#C62828">에탄올(붉은색)</strong>이 <strong style="color:#1565C0">물(파란색)</strong>보다 훨씬 높이 올라왔어요!<br><br>
+      같은 온도에서 가열해도 <strong>에탄올의 부피 변화가 물보다 훨씬 크다</strong>는 것을 알 수 있어요. 이 현상을 <strong>열팽창</strong>이라고 합니다.
+    </div>
+    ${navHTML(5, '정리 및 퀴즈', 7, false)}
+  `;
+}
+
+function pgConclusion() {
+  return `
+    <div class="step-tag">정리 & 퀴즈</div>
+    <div class="step-title">실험 결과 정리</div>
+    <div class="conc-grid">
+      <div class="conc-card water">
+        <div class="conc-icon">💧</div>
+        <div class="conc-name">물 (파란색)</div>
+        <div class="conc-text">가열 시 부피 변화 <strong>작음</strong></div>
+        <div class="bar-bg"><div class="bar-fill" style="width:28%"></div></div>
+      </div>
+      <div class="conc-card eth">
+        <div class="conc-icon">🧪</div>
+        <div class="conc-name">에탄올 (붉은색)</div>
+        <div class="conc-text">가열 시 부피 변화 <strong>큼</strong></div>
+        <div class="bar-bg"><div class="bar-fill" style="width:82%"></div></div>
+      </div>
+    </div>
+    <div class="key-point">
+      📌 <strong>결론:</strong> 액체는 온도가 높아지면 <strong>부피가 늘어납니다(열팽창)</strong>.<br>
+      액체의 종류에 따라 <strong>팽창하는 정도가 서로 다릅니다</strong>.
+    </div>
+    <div id="qSection">${renderQuiz()}</div>
+    ${navHTML(6, '처음으로 ↺', 0, false)}
+  `;
+}
+
+function renderQuiz() {
+  return quizzes.map((q, i) => {
+    const st = qState[i];
+    return `<div class="quiz-block">
+      <div class="quiz-q">Q${i+1}. ${q.q}</div>
+      <div class="quiz-opts">
+        ${q.opts.map((opt, j) => {
+          let cls = 'opt-btn';
+          let pfx = '';
+          if (st.done) {
+            if (j === q.ans) { cls += ' correct'; pfx = '✅ '; }
+            else if (j === st.sel) { cls += ' wrong'; pfx = '❌ '; }
+          }
+          return `<button class="${cls}" onclick="answer(${i},${j})" ${st.done?'disabled':''}>${pfx}${opt}</button>`;
+        }).join('')}
+      </div>
+      <div class="quiz-fb ${st.done ? 'show '+(st.ok?'good':'bad') : ''}">
+        ${st.done ? (st.ok ? '🎉 ' : '😢 틀렸어요. ') + q.fb : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function answer(qi, sel) {
+  qState[qi] = { done: true, sel, ok: sel === quizzes[qi].ans };
+  document.getElementById('qSection').innerHTML = renderQuiz();
+}
+
+// ── reRenderLab for wrapped lab area ──────────────────────────────────────
+// Override to handle the nested div structure
+const _origReRenderLab = reRenderLab;
+// reRenderLab already handles id="labWrap" - the inner div is what we update
+function reRenderLab() {
+  const wrap = document.getElementById('labWrap');
+  if (!wrap) return;
+  const inner = wrap.querySelector('div');
+  if (!inner) return;
+  inner.innerHTML = currentLabHTML();
+  bindDrag();
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────
+render();
+</script>
+</body>
+</html>
